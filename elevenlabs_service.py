@@ -11,6 +11,7 @@ app = FastAPI(title='StandupBot - ElevenLabs Service')
 ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', '')
 ELEVENLABS_AGENT_ID = os.getenv('ELEVENLABS_AGENT_ID', '')
 ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io/v1'
+SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL', '')
 
 
 # ---------------------------------------------------------------------------
@@ -44,6 +45,32 @@ async def store_transcript(user_id: str, transcript: str) -> None:
     (create thread → post messages → trigger Featherless summarization).
     '''
     print(f'[store_transcript] user_id={user_id}, transcript length={len(transcript)}')
+
+
+# ---------------------------------------------------------------------------
+# Slack helpers
+# ---------------------------------------------------------------------------
+async def send_to_slack(message: str) -> None:
+    '''
+    Send a message to the configured Slack channel via Incoming Webhook.
+    Silently logs a warning if SLACK_WEBHOOK_URL is not set.
+    '''
+    if not SLACK_WEBHOOK_URL:
+        print('[send_to_slack] SLACK_WEBHOOK_URL is not configured — skipping.')
+        return
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            SLACK_WEBHOOK_URL,
+            json={'text': message},
+            timeout=10.0,
+        )
+
+    if response.status_code != 200:
+        print(
+            f'[send_to_slack] Slack returned {response.status_code}: '
+            f'{response.text}'
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -182,4 +209,36 @@ async def elevenlabs_webhook(request: Request):
     # Hand off to Person 3's storage integration
     await store_transcript(user_id, full_transcript)
 
+    # Forward a short summary to Slack
+    summary = (
+        f':speech_balloon: *Standup complete for {user_id}*\n'
+        f'Conversation `{conversation_id}` — '
+        f'{len(transcript_entries)} exchanges recorded.'
+    )
+    await send_to_slack(summary)
+
     return {'status': 'ok', 'conversation_id': conversation_id}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/slack-notify — ad-hoc Slack notifications
+# ---------------------------------------------------------------------------
+class SlackNotifyRequest(BaseModel):
+    message: str
+
+
+@app.post('/api/slack-notify')
+async def slack_notify(body: SlackNotifyRequest):
+    '''
+    Send an arbitrary message to the configured Slack channel.
+    Useful for the ElevenLabs agent to call as a webhook tool,
+    or for any other service that needs to post to Slack.
+    '''
+    if not SLACK_WEBHOOK_URL:
+        raise HTTPException(
+            status_code=500,
+            detail='SLACK_WEBHOOK_URL is not configured on the server.',
+        )
+
+    await send_to_slack(body.message)
+    return {'status': 'ok'}
