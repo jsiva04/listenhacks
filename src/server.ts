@@ -1,0 +1,95 @@
+import "dotenv/config";
+import express from "express";
+import { ZodError } from "zod";
+import { IngestPayloadSchema } from "./types.js";
+import { BackboardClient } from "./backboard/client.js";
+import { BackboardRepo } from "./backboard/repo.js";
+import { StandupService } from "./standup/service.js";
+
+// ─── Bootstrap ───────────────────────────────────────────────────
+
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const API_KEY = process.env.BACKBOARD_API_KEY;
+
+if (!API_KEY) {
+    console.error("❌ BACKBOARD_API_KEY is not set. See .env.example.");
+    process.exit(1);
+}
+
+const client = new BackboardClient(API_KEY);
+const repo = new BackboardRepo();
+const service = new StandupService(client, repo);
+
+// ─── Express App ─────────────────────────────────────────────────
+
+const app = express();
+app.use(express.json());
+
+// ── Health check ─────────────────────────────────────────────────
+
+app.get("/health", (_req, res) => {
+    res.json({ status: "ok" });
+});
+
+// ── POST /standup/ingest ─────────────────────────────────────────
+
+app.post("/standup/ingest", async (req, res) => {
+    try {
+        // Validate payload
+        const payload = IngestPayloadSchema.parse(req.body);
+
+        // Ingest into Backboard
+        const result = await service.ingest(payload);
+
+        res.status(200).json(result);
+    } catch (err) {
+        if (err instanceof ZodError) {
+            res.status(400).json({
+                error: "Validation failed",
+                details: err.errors.map((e) => ({
+                    path: e.path.join("."),
+                    message: e.message,
+                })),
+            });
+            return;
+        }
+
+        console.error("[Server] Ingest error:", err);
+        res.status(500).json({
+            error: "Internal server error",
+            message: err instanceof Error ? err.message : String(err),
+        });
+    }
+});
+
+// ── GET /standup/thread/:threadId/messages ────────────────────────
+
+app.get("/standup/thread/:threadId/messages", async (req, res) => {
+    try {
+        const { threadId } = req.params;
+        const thread = await client.getThread(threadId);
+
+        res.status(200).json({
+            thread_id: thread.thread_id,
+            messages: thread.messages ?? [],
+        });
+    } catch (err) {
+        console.error("[Server] Get messages error:", err);
+        res.status(500).json({
+            error: "Internal server error",
+            message: err instanceof Error ? err.message : String(err),
+        });
+    }
+});
+
+// ─── Start Server ────────────────────────────────────────────────
+
+app.listen(PORT, () => {
+    console.log(`\n🚀 StandupBot Backboard server running on port ${PORT}`);
+    console.log(`   THREAD_PER_DAY = ${process.env.THREAD_PER_DAY || "false"}`);
+    console.log(`   Health:  GET  http://localhost:${PORT}/health`);
+    console.log(`   Ingest:  POST http://localhost:${PORT}/standup/ingest`);
+    console.log(
+        `   Messages: GET http://localhost:${PORT}/standup/thread/:threadId/messages\n`
+    );
+});
