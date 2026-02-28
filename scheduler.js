@@ -1,5 +1,11 @@
 const cron = require('node-cron');
+const { createClient } = require('@supabase/supabase-js');
 const { getStore } = require('./store');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 let currentJob = null;
 
@@ -35,13 +41,25 @@ async function triggerStandup(app) {
 }
 
 async function dmMember(app, userId, customQuestions) {
+  console.log(`[dmMember] sending to ${userId}`);
   try {
-    // Open a DM channel with the user
     const dm = await app.client.conversations.open({ users: userId });
     const channelId = dm.channel.id;
 
-    // TODO: Person 2 will replace this message with an ElevenLabs call link
-    const callUrl = `https://placeholder-elevenlabs-call.io/${userId}`;
+    const elevenLabsUrl = process.env.ELEVENLABS_CALL_URL;
+    if (!elevenLabsUrl) {
+      console.error('ELEVENLABS_CALL_URL not set in .env');
+      return;
+    }
+
+    // Append user_id so ElevenLabs can pass it as a dynamic variable
+    const callUrl = `${elevenLabsUrl}&user_id=${userId}`;
+
+    // Pre-insert a pending row so the webhook can match this user later
+    const today = new Date().toISOString().split('T')[0];
+    await supabase
+      .from('standup_responses')
+      .upsert({ slack_user_id: userId, date: today, status: 'pending' }, { onConflict: 'date,slack_user_id' });
 
     const questionLines = customQuestions.length
       ? `\nYour standup leader also has some specific questions for you today.`
@@ -49,7 +67,7 @@ async function dmMember(app, userId, customQuestions) {
 
     await app.client.chat.postMessage({
       channel: channelId,
-      text: `Hey <@${userId}>! Time for your daily standup. 🎙️${questionLines}\n\n<${callUrl}|Click here to join your voice standup>`,
+      text: `Hey <@${userId}>! Time for your daily standup.${questionLines}`,
       blocks: [
         {
           type: 'section',
@@ -72,14 +90,14 @@ async function dmMember(app, userId, customQuestions) {
       ],
     });
 
-    console.log(`DM sent to ${userId}`);
+    console.log(`DM sent to ${userId} — call URL: ${callUrl}`);
   } catch (err) {
-    console.error(`Failed to DM ${userId}:`, err.message);
+    console.error(`Failed to DM ${userId}:`, err.message, err.data);
   }
 }
 
 async function postSummary(app, summaries) {
-  const store = getStore();
+  const store = await getStore();
   if (!store.standupChannel) {
     console.warn('No standup channel set — summary not posted');
     return;

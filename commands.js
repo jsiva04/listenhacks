@@ -80,8 +80,8 @@ function registerCommands(app) {
     if (sub === 'run') {
       const store = await getStore();
       if (!store.members.length) return respond('No members configured. Use `/standup config members @user1 @user2`');
-      respond('Starting standup now...');
-      triggerStandup(app);
+      await respond('Starting standup now...');
+      await triggerStandup(app);
       return;
     }
 
