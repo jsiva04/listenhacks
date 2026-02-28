@@ -2,7 +2,7 @@ import os
 from datetime import date
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import httpx
 
@@ -88,8 +88,8 @@ async def send_slack_dm(user_id: str, text: str) -> None:
 # ---------------------------------------------------------------------------
 # GET /call  — stores user_id, then redirects to ElevenLabs call link
 # ---------------------------------------------------------------------------
-@app.get('/call')
-async def call_page(user_id: str = ''):
+@app.get('/call', response_class=HTMLResponse)
+async def call_page(user_id: str = '', user_name: str = ''):
     if not user_id:
         return HTMLResponse('<h2>Missing user_id</h2>', status_code=400)
 
@@ -99,10 +99,74 @@ async def call_page(user_id: str = ''):
         await client.post(
             f'{SUPABASE_URL}/rest/v1/standup_responses',
             headers={**supabase_headers(), 'Prefer': 'resolution=merge-duplicates'},
-            json={'slack_user_id': user_id, 'date': today, 'status': 'called'},
+            json={'slack_user_id': user_id, 'date': today, 'status': 'pending'},
         )
 
-    return RedirectResponse(url=f'{ELEVENLABS_CALL_URL}&user_id={user_id}')
+    # Get context for this member (Person 3 will replace with Backboard data)
+    context = await get_context_for_member(user_id)
+
+    import json
+    dynamic_vars = json.dumps({
+        'user_name': user_name or user_id,
+        'custom_context': context,
+    })
+
+    html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StandupBot — Voice Standup</title>
+  <style>
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1d21; color: #d1d2d3;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh; gap: 24px;
+      padding: 24px; text-align: center;
+    }}
+    h1 {{ font-size: 1.4rem; color: #fff; }}
+    #status {{ font-size: 0.95rem; color: #a0a0a0; }}
+    #done-msg {{
+      display: none; background: #1d2d1d; border: 1px solid #2e6b2e;
+      color: #6fcf6f; padding: 16px 24px; border-radius: 8px; font-size: 0.95rem;
+    }}
+  </style>
+</head>
+<body>
+  <h1>Daily Standup</h1>
+  <p id="status">Starting your standup call...</p>
+  <elevenlabs-convai id="widget" agent-id="{ELEVENLABS_AGENT_ID}"></elevenlabs-convai>
+  <script src="https://elevenlabs.io/convai-widget/index.js" async type="text/javascript"></script>
+  <div id="done-msg">Standup complete! Check Slack for your confirmation.</div>
+  <script>
+    const dynamicVars = {dynamic_vars};
+    const widget = document.getElementById('widget');
+    const status = document.getElementById('status');
+    const doneMsg = document.getElementById('done-msg');
+
+    // Inject dynamic variables once widget is defined
+    function initWidget() {{
+      if (customElements.get('elevenlabs-convai')) {{
+        widget.setAttribute('dynamic-variables', JSON.stringify(dynamicVars));
+      }} else {{
+        setTimeout(initWidget, 200);
+      }}
+    }}
+    initWidget();
+
+    widget.addEventListener('elevenlabs-convai:connect', () => {{
+      status.textContent = 'Connected — go ahead and speak!';
+    }});
+    widget.addEventListener('elevenlabs-convai:disconnect', () => {{
+      status.style.display = 'none';
+      doneMsg.style.display = 'block';
+    }});
+  </script>
+</body>
+</html>'''
+    return HTMLResponse(content=html)
 
 
 # ---------------------------------------------------------------------------

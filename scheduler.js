@@ -46,14 +46,14 @@ async function dmMember(app, userId, customQuestions) {
     const dm = await app.client.conversations.open({ users: userId });
     const channelId = dm.channel.id;
 
-    const elevenLabsUrl = process.env.ELEVENLABS_CALL_URL;
-    if (!elevenLabsUrl) {
-      console.error('ELEVENLABS_CALL_URL not set in .env');
+    const ngrokUrl = process.env.NGROK_URL;
+    if (!ngrokUrl) {
+      console.error('NGROK_URL not set in .env');
       return;
     }
 
-    // Look up the user's real name from Slack
-    let userName = userId; // fallback to ID
+    // Look up the user's real name from Slack to pass as dynamic variable
+    let userName = userId;
     try {
       const userInfo = await app.client.users.info({ user: userId });
       userName =
@@ -65,8 +65,8 @@ async function dmMember(app, userId, customQuestions) {
       console.warn(`Could not resolve name for ${userId}, using ID as fallback`);
     }
 
-    // Append user_id and user_name so ElevenLabs can use them as dynamic variables
-    const callUrl = `${elevenLabsUrl}&user_id=${userId}&user_name=${encodeURIComponent(userName)}`;
+    // Point to our /call page which injects dynamic variables into the widget
+    const callUrl = `${ngrokUrl}/call?user_id=${userId}&user_name=${encodeURIComponent(userName)}`;
 
     // Pre-insert a pending row so the webhook can match this user later
     const today = new Date().toISOString().split('T')[0];
