@@ -14,6 +14,7 @@ ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY', '')
 ELEVENLABS_AGENT_ID = os.getenv('ELEVENLABS_AGENT_ID', '')
 ELEVENLABS_CALL_URL = os.getenv('ELEVENLABS_CALL_URL', '')  # the talk-to link
 ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io/v1'
+BACKBOARD_SERVER = 'http://localhost:3000'
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN', '')
 SUPABASE_URL = os.getenv('SUPABASE_URL', '')
 SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
@@ -28,36 +29,37 @@ def supabase_headers():
 
 
 # ---------------------------------------------------------------------------
-# Placeholder integrations for Person 3
+# Backboard server integrations (Person 3)
 # ---------------------------------------------------------------------------
-# TODO [Person 3]: Replace with real Backboard.io context retrieval.
-# This function should query the member's Backboard assistant/thread to build
-# a summary of recent standup history, blockers, and personalized questions.
 async def get_context_for_member(user_id: str) -> str:
-    '''
-    Placeholder — returns mock context for a given team member.
-    Person 3 will replace this with the Backboard + Featherless AI integration
-    that fetches conversation history and generates personalized questions.
-    '''
-    return (
-        f'Member {user_id} — recent context:\n'
-        '• Yesterday: Worked on API integration\n'
-        '• Blocker: Waiting on design review\n'
-        '• Custom question from lead: How is the migration going?'
-    )
+    '''Fetch personalized context from Person 3's Backboard server.'''
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                f'{BACKBOARD_SERVER}/api/context/{user_id}',
+                timeout=15.0,
+            )
+        data = res.json()
+        return data.get('context', '')
+    except Exception as e:
+        print(f'[get_context_for_member] Error: {e}')
+        return f'No prior context available for {user_id}.'
 
 
-# TODO [Person 3]: Replace with real Backboard.io transcript storage.
-# This function should create a new thread (or append to today's thread)
-# on the member's Backboard assistant and store the Q&A pairs with
-# memory mode 'Auto'.
-async def store_transcript(user_id: str, transcript: str) -> None:
-    '''
-    Placeholder — stores the transcript for a given team member.
-    Person 3 will replace this with the Backboard.io storage logic
-    (create thread → post messages → trigger Featherless summarization).
-    '''
-    print(f'[store_transcript] user_id={user_id}, transcript length={len(transcript)}')
+async def store_transcript(user_id: str, transcript: str) -> str:
+    '''Send transcript to Person 3's Backboard server for storage + summarization.'''
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                f'{BACKBOARD_SERVER}/api/store-transcript',
+                json={'user_id': user_id, 'full_transcript': transcript},
+                timeout=30.0,
+            )
+        data = res.json()
+        return data.get('summary', '')
+    except Exception as e:
+        print(f'[store_transcript] Error: {e}')
+        return ''
 
 
 # ---------------------------------------------------------------------------
@@ -429,8 +431,8 @@ async def elevenlabs_webhook(request: Request):
 
     full_transcript = '\n'.join(lines)
 
-    # Hand off to Person 3's storage integration
-    await store_transcript(user_id, full_transcript)
+    # Hand off to Person 3's Backboard server (stores + summarizes)
+    summary = await store_transcript(user_id, full_transcript)
 
     # Mark standup as completed in Supabase
     today = date.today().isoformat()
