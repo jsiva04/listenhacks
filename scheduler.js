@@ -46,7 +46,7 @@ async function dmMember(app, userId, customQuestions) {
     const dm = await app.client.conversations.open({ users: userId });
     const channelId = dm.channel.id;
 
-    const elevenLabsUrl = process.env.ELEVENLABS_CALL_URL;
+    const elevenLabsUrl = process.env.HOMEPAGE_URL;
     if (!elevenLabsUrl) {
       console.error('ELEVENLABS_CALL_URL not set in .env');
       return;
@@ -66,7 +66,7 @@ async function dmMember(app, userId, customQuestions) {
     }
 
     // Append user_id and user_name so ElevenLabs can use them as dynamic variables
-    const callUrl = `${elevenLabsUrl}&user_id=${userId}&user_name=${encodeURIComponent(userName)}`;
+    const callUrl = `${elevenLabsUrl}?user_id=${userId}`;
 
     // Pre-insert a pending row so the webhook can match this user later
     const today = new Date().toISOString().split('T')[0];
