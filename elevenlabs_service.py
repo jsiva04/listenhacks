@@ -390,7 +390,7 @@ async def elevenlabs_webhook(request: Request):
             headers=supabase_headers(),
             params={
                 'date': f'eq.{today}',
-                'status': 'eq.pending',
+                'status': 'eq.called',
                 'order': 'created_at.desc',
                 'limit': '1',
             },
