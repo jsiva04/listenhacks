@@ -52,8 +52,21 @@ async function dmMember(app, userId, customQuestions) {
       return;
     }
 
-    // Append user_id so ElevenLabs can pass it as a dynamic variable
-    const callUrl = `${elevenLabsUrl}&user_id=${userId}`;
+    // Look up the user's real name from Slack
+    let userName = userId; // fallback to ID
+    try {
+      const userInfo = await app.client.users.info({ user: userId });
+      userName =
+        userInfo.user.profile.display_name ||
+        userInfo.user.real_name ||
+        userInfo.user.name ||
+        userId;
+    } catch (e) {
+      console.warn(`Could not resolve name for ${userId}, using ID as fallback`);
+    }
+
+    // Append user_id and user_name so ElevenLabs can use them as dynamic variables
+    const callUrl = `${elevenLabsUrl}&user_id=${userId}&user_name=${encodeURIComponent(userName)}`;
 
     // Pre-insert a pending row so the webhook can match this user later
     const today = new Date().toISOString().split('T')[0];
