@@ -21,6 +21,7 @@
   "homepage": "https://github.com/jsiva04/listenhacks#readme",
   "dependencies": {
     "@slack/bolt": "^4.6.0",
+    "@supabase/supabase-js": "^2.98.0",
     "dotenv": "^17.3.1",
     "node-cron": "^4.2.1"
   },

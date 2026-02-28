@@ -4,8 +4,8 @@ const { getStore } = require('./store');
 let currentJob = null;
 
 // Called once on startup — reads store and schedules the cron
-function scheduleStandup(app) {
-  const store = getStore();
+async function scheduleStandup(app) {
+  const store = await getStore();
   startJob(app, store.standupTime);
 }
 
@@ -20,7 +20,7 @@ function startJob(app, time) {
 }
 
 async function triggerStandup(app) {
-  const store = getStore();
+  const store = await getStore();
 
   if (!store.members.length) {
     console.log('No standup members configured, skipping');

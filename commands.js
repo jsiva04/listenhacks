@@ -21,13 +21,13 @@ function registerCommands(app) {
       if (!time || !/^\d{2}:\d{2}$/.test(time)) {
         return respond('Usage: `/standup config time HH:MM` (24h format, e.g. `09:30`)');
       }
-      setStandupTime(time);
+      await setStandupTime(time);
       return respond(`Standup time set to *${time}*`);
     }
 
     // /standup config channel
     if (sub === 'config' && args[1] === 'channel') {
-      setStandupChannel(command.channel_id);
+      await setStandupChannel(command.channel_id);
       return respond(`Standup summaries will be posted to this channel`);
     }
 
@@ -41,7 +41,7 @@ function registerCommands(app) {
       if (!members.length) {
         return respond('Could not resolve any users. Make sure to @mention them by selecting from the dropdown.');
       }
-      setMembers(members);
+      await setMembers(members);
       return respond(`Standup members set: ${members.map(id => `<@${id}>`).join(', ')}`);
     }
 
@@ -52,7 +52,7 @@ function registerCommands(app) {
       if (!userId || !question) {
         return respond('Usage: `/standup ask @user Your question here`');
       }
-      addCustomQuestion(userId, question);
+      await addCustomQuestion(userId, question);
       return respond(`Custom question added for <@${userId}>: _"${question}"_`);
     }
 
@@ -60,13 +60,13 @@ function registerCommands(app) {
     if (sub === 'clear') {
       const [userId] = await resolveUserIds(app.client, [args[1]]);
       if (!userId) return respond('Usage: `/standup clear @user`');
-      clearCustomQuestions(userId);
+      await clearCustomQuestions(userId);
       return respond(`Custom questions cleared for <@${userId}>`);
     }
 
     // /standup status
     if (sub === 'status') {
-      const store = getStore();
+      const store = await getStore();
       const members = store.members.map(id => `<@${id}>`).join(', ') || 'none';
       return respond(
         `*Standup Config*\n` +
@@ -78,7 +78,7 @@ function registerCommands(app) {
 
     // /standup run  — trigger immediately
     if (sub === 'run') {
-      const store = getStore();
+      const store = await getStore();
       if (!store.members.length) return respond('No members configured. Use `/standup config members @user1 @user2`');
       respond('Starting standup now...');
       triggerStandup(app);

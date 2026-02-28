@@ -1,57 +1,52 @@
-const fs = require('fs');
-const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
-const STORE_PATH = path.join(__dirname, 'store.json');
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
-const defaults = {
-  members: [],        // array of Slack user IDs
-  standupTime: '09:30',  // 24h format HH:MM
-  standupChannel: null,  // Slack channel ID for summaries
-  customQuestions: {},   // { slackUserId: ["question1", "question2"] }
-};
+async function getStore() {
+  const [{ data: config }, { data: members }, { data: questions }] = await Promise.all([
+    supabase.from('config').select('*').eq('id', 1).single(),
+    supabase.from('members').select('slack_user_id'),
+    supabase.from('custom_questions').select('*'),
+  ]);
 
-function load() {
-  if (!fs.existsSync(STORE_PATH)) return { ...defaults };
-  return JSON.parse(fs.readFileSync(STORE_PATH, 'utf8'));
+  const customQuestions = {};
+  for (const row of questions || []) {
+    if (!customQuestions[row.slack_user_id]) customQuestions[row.slack_user_id] = [];
+    customQuestions[row.slack_user_id].push(row.question);
+  }
+
+  return {
+    standupTime: config?.standup_time || '09:30',
+    standupChannel: config?.standup_channel || null,
+    members: (members || []).map(m => m.slack_user_id),
+    customQuestions,
+  };
 }
 
-function save(data) {
-  fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2));
+async function setStandupTime(time) {
+  await supabase.from('config').update({ standup_time: time }).eq('id', 1);
 }
 
-function getStore() {
-  return load();
+async function setStandupChannel(channelId) {
+  await supabase.from('config').update({ standup_channel: channelId }).eq('id', 1);
 }
 
-function setMembers(members) {
-  const store = load();
-  store.members = members;
-  save(store);
+async function setMembers(userIds) {
+  await supabase.from('members').delete().neq('slack_user_id', '');
+  if (userIds.length) {
+    await supabase.from('members').insert(userIds.map(id => ({ slack_user_id: id })));
+  }
 }
 
-function setStandupTime(time) {
-  const store = load();
-  store.standupTime = time;
-  save(store);
+async function addCustomQuestion(userId, question) {
+  await supabase.from('custom_questions').insert({ slack_user_id: userId, question });
 }
 
-function setStandupChannel(channelId) {
-  const store = load();
-  store.standupChannel = channelId;
-  save(store);
-}
-
-function addCustomQuestion(userId, question) {
-  const store = load();
-  if (!store.customQuestions[userId]) store.customQuestions[userId] = [];
-  store.customQuestions[userId].push(question);
-  save(store);
-}
-
-function clearCustomQuestions(userId) {
-  const store = load();
-  store.customQuestions[userId] = [];
-  save(store);
+async function clearCustomQuestions(userId) {
+  await supabase.from('custom_questions').delete().eq('slack_user_id', userId);
 }
 
 module.exports = {
