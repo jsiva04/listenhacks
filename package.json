@@ -1,24 +1,42 @@
 {
-  "name": "listenhacks-backboard",
-  "version": "1.0.0",
-  "description": "Backboard.io storage layer for daily standup voice agent",
-  "main": "dist/server.js",
-  "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
-    "build": "tsc",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "openai": "^6.25.0",
-    "zod": "^3.24.2"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.13.5",
-    "tsx": "^4.19.3",
-    "typescript": "^5.7.3"
-  }
+    "name": "listenhacks",
+    "version": "1.0.0",
+    "description": "StandupBot — Voice standup with Backboard memory + Slack integration",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "tsx watch src/server.ts",
+        "dev:backboard": "tsx src/server.ts",
+        "build": "tsc",
+        "typecheck": "tsc --noEmit",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jsiva04/listenhacks.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "bugs": {
+        "url": "https://github.com/jsiva04/listenhacks/issues"
+    },
+    "homepage": "https://github.com/jsiva04/listenhacks#readme",
+    "dependencies": {
+        "@slack/bolt": "^4.6.0",
+        "@supabase/supabase-js": "^2.98.0",
+        "dotenv": "^17.3.1",
+        "express": "^4.21.2",
+        "node-cron": "^4.2.1",
+        "openai": "^6.25.0",
+        "zod": "^3.24.2"
+    },
+    "devDependencies": {
+        "@dotenvx/dotenvx": "^1.52.0",
+        "@types/express": "^5.0.0",
+        "@types/node": "^22.13.5",
+        "tsx": "^4.19.3",
+        "typescript": "^5.7.3"
+    }
 }
