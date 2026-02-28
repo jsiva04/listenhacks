@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 node_modules/
 dist/
 .env
 .backboard_state.json
+=======
+.env
+>>>>>>> d87df06b1849580c885262d343a9c5ea160e06b6
