@@ -9,26 +9,28 @@ const backboardRepo = new BackboardRepo();
 const standupService = new StandupService(backboardClient, backboardRepo);
 const featherlessClient = new FeatherlessClient();
 
-export async function getContextForMember(
-  teamId: string, 
-  userId: string
+export async function get_context_for_member(
+  user_id: string
 ): Promise<{ historyContext: string, customQuestions: string[] }> {
-  console.log(`[Integration] Fetching context for team=${teamId} user=${userId}`);
-  
+  // Hardcode a default teamId since ElevenLabs isn't tracking teams
+  const teamId = "default-team";
+
+  console.log(`[Integration] Fetching context for user=${user_id}`);
+
   try {
     const assistantId = await backboardRepo.getOrCreateAssistant(backboardClient);
-    
-    const threadKey = buildThreadKey(teamId, userId, "history");
+
+    const threadKey = buildThreadKey(teamId, user_id, "history");
     const threadId = await backboardRepo.getOrCreateThread(backboardClient, assistantId, threadKey);
-    
+
     const thread = await backboardClient.getThread(threadId);
-    
+
     if (!thread.messages || thread.messages.length === 0) {
-       console.log(`[Integration] No history found for user=${userId}. Using defaults.`);
-       return {
-         historyContext: "No previous standup history recorded.",
-         customQuestions: ["What did you work on yesterday?", "What are you working on today?", "Any blockers?"]
-       };
+      console.log(`[Integration] No history found for user=${user_id}. Using defaults.`);
+      return {
+        historyContext: "No previous standup history recorded.",
+        customQuestions: ["What did you work on yesterday?", "What are you working on today?", "Any blockers?"]
+      };
     }
 
     const recentMessages = thread.messages.slice(-10);
@@ -41,31 +43,34 @@ export async function getContextForMember(
       customQuestions
     };
   } catch (err) {
-    console.error(`[Integration] Failed getting context for ${userId}:`, err);
+    console.error(`[Integration] Failed getting context for ${user_id}:`, err);
     throw err;
   }
 }
 
-export async function storeTranscript(
-  teamId: string, 
-  userId: string, 
-  date: string, 
-  transcript: string
+export async function store_transcript(
+  user_id: string,
+  full_transcript: string,
+  conversation_id?: string
 ): Promise<{ summaryForSlack: string | undefined }> {
-  console.log(`[Integration] Processing new transcript for team=${teamId} user=${userId}`);
-  
-  const { extracted, summary } = await featherlessClient.extractData(transcript);
-  
+  // Hardcode defaults since ElevenLabs only passes user/transcript
+  const teamId = "default-team";
+  const date = new Date().toISOString().split('T')[0];
+
+  console.log(`[Integration] Processing new transcript for user=${user_id} (conv: ${conversation_id || 'none'})`);
+
+  const { extracted, summary } = await featherlessClient.extractData(full_transcript);
+
   await standupService.ingest({
     team_id: teamId,
-    user_id: userId,
+    user_id: user_id,
     date,
-    transcript,
+    transcript: full_transcript,
     extracted,
     summary
   });
-  
-  console.log(`[Integration] Finished storing transcript and extracted data in Backboard for ${userId}`);
-  
+
+  console.log(`[Integration] Finished storing transcript and extracted data in Backboard for ${user_id}`);
+
   return { summaryForSlack: summary };
 }
